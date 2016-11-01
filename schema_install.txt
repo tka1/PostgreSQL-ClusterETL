@@ -1,0 +1,306 @@
+CREATE ROLE cluster LOGIN
+  ENCRYPTED PASSWORD 'md52df97743cc3c3e1040bb8540eaab0d92'
+  NOSUPERUSER INHERIT NOCREATEDB NOCREATEROLE NOREPLICATION;
+
+
+CREATE SCHEMA cluster
+  AUTHORIZATION postgres;
+
+GRANT ALL ON SCHEMA cluster TO postgres;
+GRANT USAGE ON SCHEMA cluster TO cluster;
+
+CREATE TABLE cluster.clustertable
+(
+  title character varying,
+  decall character varying,
+  dxcall character varying,
+  freq numeric,
+  band character varying,
+  country character varying,
+  id serial NOT NULL,
+  sig_noise character varying,
+  datetime timestamp without time zone,
+  insert_time timestamp without time zone DEFAULT now(),
+  mode character varying,
+  de_continent character(2),
+  dx_continent character(2),
+   info character varying,
+   de_country character varying,
+  spotter_continent character varying,
+  skimmode character(2),
+  
+  CONSTRAINT clustertable_pkey PRIMARY KEY (id)
+)
+
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE cluster.clustertable
+  OWNER TO postgres;
+GRANT ALL ON TABLE cluster.clustertable TO postgres;
+GRANT SELECT, UPDATE, INSERT, TRUNCATE, DELETE ON TABLE cluster.clustertable TO cluster;
+
+-- Index: cluster.title_ind
+
+-- DROP INDEX cluster.title_ind;
+
+CREATE INDEX title_ind
+  ON cluster.clustertable
+  USING btree
+  (title COLLATE pg_catalog."default");
+
+
+
+CREATE OR REPLACE VIEW cluster.band_count AS 
+ SELECT count(DISTINCT clustertable.dxcall) AS kountti,
+    clustertable.band,
+    clustertable.title,
+    clustertable.de_continent,
+    clustertable.mode
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '01:00:00'::interval)
+  GROUP BY clustertable.band, clustertable.title, clustertable.de_continent, clustertable.mode
+  ORDER BY clustertable.band;
+
+ALTER TABLE cluster.band_count
+  OWNER TO postgres;
+GRANT ALL ON TABLE cluster.band_count TO postgres;
+GRANT SELECT ON TABLE cluster.band_count TO cluster;
+
+CREATE OR REPLACE VIEW cluster.country_count AS 
+ SELECT count(DISTINCT clustertable.dxcall) AS kountti,
+    clustertable.country,
+    clustertable.title,
+    clustertable.de_continent,
+    clustertable.mode
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '01:00:00'::interval)
+  GROUP BY clustertable.country, clustertable.title, clustertable.de_continent, clustertable.mode;
+
+ALTER TABLE cluster.country_count
+  OWNER TO postgres;
+GRANT ALL ON TABLE cluster.country_count TO postgres;
+GRANT SELECT ON TABLE cluster.country_count TO cluster;
+
+CREATE OR REPLACE VIEW cluster.cumul_spot_count AS 
+ SELECT count(DISTINCT clustertable.dxcall) AS spot_count,
+    to_char(clustertable.insert_time, 'dd/HH24'::text) AS day_hour,
+    clustertable.title,
+    clustertable.de_continent,
+    clustertable.mode
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '06:00:00'::interval)
+  GROUP BY (to_char(clustertable.insert_time, 'dd/HH24'::text)), clustertable.title, clustertable.de_continent, clustertable.mode
+  ORDER BY (to_char(clustertable.insert_time, 'dd/HH24'::text));
+
+ALTER TABLE cluster.cumul_spot_count
+  OWNER TO postgres;
+GRANT ALL ON TABLE cluster.cumul_spot_count TO postgres;
+GRANT SELECT ON TABLE cluster.cumul_spot_count TO public;
+
+CREATE OR REPLACE VIEW cluster.dxrows AS 
+ SELECT clustertable.decall,
+    clustertable.dxcall,
+    clustertable.country,
+    clustertable.freq,
+    clustertable.band,
+    clustertable.mode,
+    clustertable.sig_noise,
+    clustertable.insert_time,
+    clustertable.skimmode,
+    clustertable.title,
+    clustertable.de_continent
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '01:00:00'::interval)
+  ORDER BY clustertable.insert_time DESC
+ ;
+
+ALTER TABLE cluster.dxrows
+  OWNER TO postgres;
+GRANT ALL ON TABLE cluster.dxrows TO postgres;
+GRANT SELECT ON TABLE cluster.dxrows TO cluster;
+
+CREATE OR REPLACE VIEW cluster.latestrows AS 
+ SELECT clustertable.decall,
+    clustertable.dxcall,
+    clustertable.country,
+    clustertable.freq,
+    clustertable.band,
+    clustertable.mode,
+    clustertable.sig_noise,
+    clustertable.insert_time,
+    clustertable.skimmode,
+    clustertable.title,
+    clustertable.de_continent,
+    clustertable.dx_continent
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '01:00:00'::interval)
+  ORDER BY clustertable.insert_time DESC ;
+
+ALTER TABLE cluster.latestrows
+  OWNER TO postgres;
+GRANT ALL ON TABLE cluster.latestrows TO postgres;
+GRANT SELECT ON TABLE cluster.latestrows TO cluster;
+  
+
+ 
+
+CREATE OR REPLACE FUNCTION cluster.band_count(
+    IN title text,
+    IN de_continent text,
+    IN mode text,
+    OUT kountti bigint,
+    OUT band text)
+  RETURNS SETOF record AS
+$BODY$
+ SELECT count(DISTINCT clustertable.dxcall) AS kountti,
+    clustertable.band
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '01:00:00'::interval)
+  and title = left(($1),40)
+  and de_continent = left(($2),2)
+  and mode like left(($3),6)
+  GROUP BY clustertable.band;
+  $BODY$
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION cluster.band_count(text, text, text)
+  OWNER TO postgres;
+
+  
+  CREATE OR REPLACE FUNCTION cluster.country_count(
+    IN title text,
+    IN de_continent text,
+    IN mode text,
+    OUT kountti bigint,
+    OUT country text)
+  RETURNS SETOF record AS
+$BODY$
+SELECT count(clustertable.dxcall) AS kountti,
+    clustertable.country
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '01:00:00'::interval)
+  and title = left(($1),40)
+  and de_continent = left(($2),2)
+  and mode like left(($3),6)
+  GROUP BY clustertable.country;
+  $BODY$
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION cluster.country_count(text, text, text)
+  OWNER TO postgres;
+
+  
+  CREATE OR REPLACE FUNCTION cluster.cumul_spot_count(
+    IN title text,
+    IN de_continent text,
+    IN mode text,
+    OUT spot_count bigint,
+    OUT "day/hour" text)
+  RETURNS SETOF record AS
+$BODY$
+ SELECT count(DISTINCT clustertable.dxcall) AS spot_count,
+    to_char(clustertable.insert_time, 'dd/HH24'::text) AS "day/hour"
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '6:00:00'::interval)
+  and title = left(($1),40)
+  and de_continent = left(($2),2)
+  and mode like left(($3),6)
+  GROUP BY to_char(clustertable.insert_time, 'dd/HH24'::text)
+  ORDER BY to_char(clustertable.insert_time, 'dd/HH24'::text);
+
+  $BODY$
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION cluster.cumul_spot_count(text, text, text)
+  OWNER TO postgres;
+GRANT EXECUTE ON FUNCTION cluster.cumul_spot_count(text, text, text) TO public;
+GRANT EXECUTE ON FUNCTION cluster.cumul_spot_count(text, text, text) TO postgres;
+GRANT EXECUTE ON FUNCTION cluster.cumul_spot_count(text, text, text) TO cluster;
+  CREATE OR REPLACE FUNCTION cluster.latestrows(
+    IN title text,
+    IN de_continent text,
+    IN mode text,
+    IN dx_continent text,
+    OUT decall text,
+    OUT dxcall text,
+    OUT country text,
+    OUT freq numeric,
+    OUT band text,
+    OUT mode text,
+    OUT sig_noise text,
+    OUT insert_time timestamp without time zone)
+  RETURNS SETOF record AS
+$BODY$
+SELECT decall,dxcall,country,freq,band,mode,sig_noise,insert_time
+   FROM cluster.clustertable
+  WHERE clustertable.insert_time >= (now() - '0:10:00'::interval)
+  and title = left(($1),40)
+  and de_continent = left(($2),2)
+    and mode = left(($3),6)
+    and dx_continent !=( left(($4),2))
+    order by clustertable.insert_time limit 30;
+  $BODY$
+  LANGUAGE sql VOLATILE
+  COST 100
+  ROWS 1000;
+ALTER FUNCTION cluster.latestrows(text, text, text, text)
+  OWNER TO postgres;
+
+CREATE SEQUENCE cluster.dxcc_id_seq
+  INCREMENT 1
+  MINVALUE 1
+  MAXVALUE 9223372036854775807
+  START 4028
+  CACHE 1;
+ALTER TABLE cluster.dxcc_id_seq
+  OWNER TO postgres;
+GRANT ALL ON SEQUENCE cluster.dxcc_id_seq TO postgres;
+GRANT ALL ON SEQUENCE cluster.dxcc_id_seq TO cluster;
+
+CREATE TABLE cluster.dxcc
+(
+  country character varying,
+  prefix character varying,
+  id serial NOT NULL,
+  cq_zone character varying,
+  itu_zone character varying,
+  continent character varying,
+  lat character varying,
+  "long" character varying,
+  local_time character varying,
+  prim_dxcc_prefix character varying,
+  CONSTRAINT dxcctable_pkey PRIMARY KEY (id)
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE cluster.dxcc
+  OWNER TO postgres;
+GRANT ALL ON TABLE cluster.dxcc TO postgres;
+GRANT SELECT, UPDATE, INSERT, TRUNCATE, DELETE ON TABLE cluster.dxcc TO cluster;
+
+-- Index: cluster.prefix_ind
+
+-- DROP INDEX cluster.prefix_ind;
+
+CREATE INDEX prefix_ind
+  ON cluster.dxcc
+  USING btree
+  (prefix COLLATE pg_catalog."default");
+
+
+
+  
+
+GRANT  USAGE   ON SCHEMA cluster  TO cluster;
+GRANT SELECT, UPDATE, INSERT, TRUNCATE, DELETE ON TABLE cluster.clustertable TO cluster;
+grant execute on function cluster.band_count(text, text, text) to cluster;
+grant execute on function cluster.country_count(text, text, text) to cluster;
+grant execute on function cluster.cumul_spot_count(text, text, text) to cluster;
+grant execute on function cluster.latestrows(text, text, text, text) to cluster;
+GRANT USAGE, SELECT ON SEQUENCE cluster.clustertable_id_seq TO cluster;
+
