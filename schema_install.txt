@@ -360,5 +360,82 @@ CREATE INDEX ind_date
   USING btree
   (date);
 
+CREATE OR REPLACE VIEW cluster.wae_dx_rtty AS 
+ SELECT a.callsign AS decall,
+    a.dx AS dxcall,
+    a.freq,
+    a.band,
+    b.country,
+    a.id,
+    a.db AS sig_noise,
+    a.date AS datetime,
+    a.date AS insert_time,
+    a.tx_mode AS mode,
+    a.de_cont AS de_continent,
+    b.continent AS dx_continent,
+    c.country AS de_country,
+    a.mode AS skimmode
+   FROM cluster.rbn a
+     LEFT JOIN ( SELECT DISTINCT dxcc.prim_dxcc_prefix,
+            dxcc.country,
+            dxcc.continent
+           FROM cluster.dxcc) b ON a.dx_pfx::text = b.prim_dxcc_prefix::text
+     LEFT JOIN ( SELECT DISTINCT dxcc.prim_dxcc_prefix,
+            dxcc.country,
+            dxcc.continent
+           FROM cluster.dxcc) c ON a.de_pfx::text = c.prim_dxcc_prefix::text
+  WHERE a.date >= to_timestamp('2016-11-12 00:00'::text, 'yyyy-mm-dd hh24:mi'::text) AND a.date <= to_timestamp('2016-11-14 00:00'::text, 'yyyy-mm-dd hh24:mi'::text) AND a.tx_mode::text ~~ 'RTTY%'::text AND (a.band::text = ANY (ARRAY['80m'::character varying::text, '40m'::character varying::text, '20m'::character varying::text, '15m'::character varying::text, '10m'::character varying::text])) AND a.mode::bpchar = 'CQ'::bpchar
+  ORDER BY a.date;
+
+ALTER TABLE cluster.wae_dx_rtty
+  OWNER TO postgres;
+
+  CREATE TABLE cluster.fluxdata
+(
+  fluxdate character varying,
+  fluxtime character varying,
+  fluxjulian character varying,
+  fluxcarrington character varying,
+  fluxobsflux character varying,
+  fluxadjflux character varying,
+  fluxursi character varying
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE cluster.fluxdata
+  OWNER TO postgres;
+  
+  CREATE OR REPLACE VIEW cluster.fluxdata_view AS 
+ SELECT fluxdata.fluxdate AS date,
+    round(avg(fluxdata.fluxadjflux::numeric)) AS flux
+   FROM cluster.fluxdata
+  GROUP BY fluxdata.fluxdate;
+
+ALTER TABLE cluster.fluxdata_view
+  OWNER TO postgres;
+
+  CREATE OR REPLACE VIEW cluster.rbn_6m AS 
+ SELECT rbn.id,
+    rbn.callsign,
+    rbn.de_pfx,
+    rbn.de_cont,
+    rbn.freq,
+    rbn.band,
+    rbn.dx,
+    rbn.dx_pfx,
+    rbn.dx_cont,
+    rbn.mode,
+    rbn.db,
+    rbn.speed,
+    rbn.tx_mode,
+    to_char(rbn.date, 'yyyy-mm-dd'::text) AS date,
+    round(rbn.freq) AS roundfreq
+   FROM cluster.rbn
+  WHERE rbn.date >= to_timestamp('2009-01'::text, 'yyyy-mm'::text) AND rbn.date <= to_timestamp('2016-12'::text, 'yyyy-mm'::text) AND rbn.band::text = '6m'::text;
+
+ALTER TABLE cluster.rbn_6m
+  OWNER TO postgres;
+
 
 
