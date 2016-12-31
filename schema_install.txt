@@ -304,3 +304,61 @@ grant execute on function cluster.cumul_spot_count(text, text, text) to cluster;
 grant execute on function cluster.latestrows(text, text, text, text) to cluster;
 GRANT USAGE, SELECT ON SEQUENCE cluster.clustertable_id_seq TO cluster;
 
+CREATE SEQUENCE cluster.rbn_id_seq
+  INCREMENT 1
+  MINVALUE 1
+  MAXVALUE 9223372036854775807
+  START 596995174
+  CACHE 1;
+ALTER TABLE cluster.rbn_id_seq
+  OWNER TO postgres;
+GRANT ALL ON SEQUENCE cluster.rbn_id_seq TO postgres;
+GRANT ALL ON SEQUENCE cluster.rbn_id_seq TO cluster;
+
+
+CREATE TABLE cluster.rbn
+(
+  id integer NOT NULL DEFAULT nextval('cluster.rbn_id_seq'::regclass),
+  callsign character varying NOT NULL,
+  de_pfx character varying NOT NULL,
+  de_cont character varying NOT NULL,
+  freq numeric,
+  band character varying NOT NULL,
+  dx character varying,
+  dx_pfx character varying NOT NULL,
+  dx_cont character varying NOT NULL,
+  mode character varying NOT NULL,
+  db numeric,
+  speed character varying,
+  tx_mode character varying,
+  date timestamp without time zone,
+  CONSTRAINT prim PRIMARY KEY (id)
+)
+WITH (
+  OIDS=FALSE
+);
+ALTER TABLE cluster.rbn
+  OWNER TO postgres;
+GRANT ALL ON TABLE cluster.rbn TO postgres;
+GRANT SELECT, UPDATE, INSERT, TRUNCATE, DELETE ON TABLE cluster.rbn TO cluster;
+
+-- Index: cluster.ind_band
+
+-- DROP INDEX cluster.ind_band;
+
+CREATE INDEX ind_band
+  ON cluster.rbn
+  USING btree
+  (band COLLATE pg_catalog."default");
+
+-- Index: cluster.ind_date
+
+-- DROP INDEX cluster.ind_date;
+
+CREATE INDEX ind_date
+  ON cluster.rbn
+  USING btree
+  (date);
+
+
+
