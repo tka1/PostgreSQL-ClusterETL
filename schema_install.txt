@@ -335,6 +335,51 @@ CREATE INDEX prefix_ind
   USING btree
   (prefix COLLATE pg_catalog."default");
 
+CREATE OR REPLACE VIEW cluster.country
+ AS
+ SELECT DISTINCT country,
+    continent,
+    lat,
+    long
+   FROM cluster.dxcc;
+
+ALTER TABLE cluster.country
+    OWNER TO postgres;
+
+GRANT SELECT ON TABLE cluster.country TO PUBLIC;
+GRANT ALL ON TABLE cluster.country TO postgres;
+
+CREATE OR REPLACE VIEW cluster.latestrows_new
+ AS
+ SELECT clustertable.title,
+    clustertable.insert_time,
+    clustertable.decall,
+    clustertable.dxcall,
+    clustertable.sig_noise,
+    b.country AS dxcall_country,
+    clustertable.dx_continent,
+    b.lat AS dxcall_lat,
+    b.long AS dxcall_long,
+    c.country AS decall_country,
+    clustertable.de_continent,
+    c.lat AS decall_lat,
+    c.long AS decall_long,
+    clustertable.mode,
+    clustertable.skimmode,
+    clustertable.band
+   FROM cluster.clustertable
+     JOIN cluster.country c ON clustertable.de_country::text = c.country::text
+     JOIN cluster.country b ON clustertable.country::text = b.country::text
+  WHERE clustertable.insert_time >= (now() - '01:00:00'::interval)
+  ORDER BY clustertable.insert_time DESC;
+
+ALTER TABLE cluster.latestrows_new
+    OWNER TO postgres;
+
+GRANT SELECT ON TABLE cluster.latestrows_new TO cluster;
+GRANT ALL ON TABLE cluster.latestrows_new TO postgres;
+
+
 
 
   
