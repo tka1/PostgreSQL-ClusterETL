@@ -48,6 +48,17 @@ CREATE INDEX title_ind
   ON cluster.clustertable
   USING btree
   (title COLLATE pg_catalog."default");
+  
+  -- Index: Inserttime_index
+
+-- DROP INDEX IF EXISTS cluster."Inserttime_index";
+
+CREATE INDEX IF NOT EXISTS "Inserttime_index"
+    ON cluster.clustertable USING btree
+    (insert_time ASC NULLS LAST)
+    WITH (deduplicate_items=True)
+    TABLESPACE pg_default;
+  
 
 
 
