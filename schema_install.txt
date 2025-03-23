@@ -365,7 +365,7 @@ CREATE OR REPLACE VIEW cluster.latestrows_new
  SELECT clustertable.title,
     clustertable.insert_time,
     clustertable.decall,
-    clustertable.dxcall,
+    concat ('<a href="https://www.qrz.com/db/',clustertable.dxcall,'"target="_blank">',clustertable.dxcall,'</a>') AS dxcall,
     clustertable.sig_noise,
     b.country AS dxcall_country,
     clustertable.dx_continent,
